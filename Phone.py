@@ -1,19 +1,16 @@
-import RPi.GPIO as GPIO
+import threading
 import time
+from multiprocessing import Process, Value
 
-from osc4py3.as_eventloop import *
+import RPi.GPIO as GPIO
+
 from osc4py3 import oscbuildparse
-
+from osc4py3.as_eventloop import *
 from pythonosc import dispatcher
 from pythonosc import osc_server
 
-from pprint import pprint
-
-import threading
-
-from multiprocessing import Process, Value
-
 RESOLUME_CLIENT_NAME = "Arena"
+REAPER_CLIENT_NAME = "Framboos"
 
 lock = threading.Lock()
 # STORY SETUP
@@ -73,7 +70,7 @@ def choice(choice):
             storyActive.value = True
             return oscbuildparse.OSCMessage("/composition/columns/4/connect", None, [1])
 
-def sendMessage(message): 
+def sendResolumeMessage(message):
     finished = False
     while not finished:
             osc_send(message, RESOLUME_CLIENT_NAME)
@@ -95,13 +92,58 @@ def openClient(currentNumber):
         storyStart = True
         timer = threading.Timer(5.0, storyStarted)
         timer.start()
-        
-        osc_startup()
-        osc_udp_client(OSC_REMOTE_SERVER_IP, RESOLUME_PORT, RESOLUME_CLIENT_NAME)
-        sendMessage(choice(int(currentNumber)))
-        osc_terminate()
+
+        startResolumeVideo(currentNumber)
+        startReaperAudio(currentNumber)
     finally:
         lock.release()
+
+
+def startResolumeVideo(currentNumber):
+    osc_startup()
+    osc_udp_client(OSC_REMOTE_SERVER_IP, RESOLUME_PORT, RESOLUME_CLIENT_NAME)
+    sendResolumeMessage(choice(int(currentNumber)))
+    osc_terminate()
+
+
+def setReaperMarker(currentNumber):
+    markerMessage = oscbuildparse.OSCMessage("/marker/" + currentNumber, None, [1])
+    finished = False
+    while not finished:
+            osc_send(markerMessage, REAPER_CLIENT_NAME)
+            osc_process()
+            finished = True
+
+
+def playReaperAudio():
+    playMessage = oscbuildparse.OSCMessage("/action/40317", None, [1])
+    finished = False
+    while not finished:
+            finished = True
+            osc_send(playMessage, REAPER_CLIENT_NAME)
+            osc_process()
+
+
+def stopReaperAudio():
+    stopMessage = oscbuildparse.OSCMessage("/stop/", None, [1])
+    finished = False
+    while not finished:
+            osc_send(stopMessage, REAPER_CLIENT_NAME)
+            osc_process()
+            finished = True
+
+
+def startReaperAudio(currentNumber):
+    osc_startup()
+    osc_udp_client(OSC_REMOTE_SERVER_IP, REAPER_PORT, REAPER_CLIENT_NAME)
+
+    if currentNumber > 4:
+        stopReaperAudio()
+    else:
+        setReaperMarker(currentNumber)
+        playReaperAudio()
+        osc_terminate()
+
 
 def dataHandler(address, message):
     if storyActive.value == True:
