@@ -13,29 +13,37 @@ import threading
 
 from multiprocessing import Process, Value
 
+RESOLUME_CLIENT_NAME = "Arena"
+
 lock = threading.Lock()
 # STORY SETUP
 storyActive = Value('b', False)
 storyStart = False
 
 # RPI SETUP
-redPin = 21
-bluePin = 20
+RED_PI_PIN = 21
+BLUE_PI_PIN = 20
 
-# IP CLIENT
-ipClient = "192.168.43.40"
+# IP of the Resolume & Reaper Server
+OSC_REMOTE_SERVER_IP = "192.168.137.1"
 
-# IP SERVER & RESOLUME ADDRESS
-ipServer = "192.168.43.181"
-address = "/composition/layers/1/position"
+RESOLUME_PORT = 2333
+OSC_SERVER_PORT = 7001
+REAPER_PORT = 4242
+
+# IP of the
+
+# Local IP used to host a server for Resolume to connect to, address used for Resolume
+OSC_LOCAL_SERVER_IP = "192.168.137.42"
+ADDRESS = "/composition/layers/1/position"
 
 def getNumber():
     currState = 0
     oldState = 0
     pulses = 0
     
-    while GPIO.input(bluePin) == 0:
-        currState = GPIO.input(redPin)
+    while GPIO.input(BLUE_PI_PIN) == 0:
+        currState = GPIO.input(RED_PI_PIN)
         if oldState != currState and currState == 0:
             oldState = 0
             time.sleep(.08)
@@ -68,7 +76,7 @@ def choice(choice):
 def sendMessage(message): 
     finished = False
     while not finished:
-            osc_send(message, "Arena")
+            osc_send(message, RESOLUME_CLIENT_NAME)
             osc_process()
             finished = True
             
@@ -89,7 +97,7 @@ def openClient(currentNumber):
         timer.start()
         
         osc_startup()
-        osc_udp_client(ipClient, 2333, "Arena")
+        osc_udp_client(OSC_REMOTE_SERVER_IP, RESOLUME_PORT, RESOLUME_CLIENT_NAME)
         sendMessage(choice(int(currentNumber)))
         osc_terminate()
     finally:
@@ -104,15 +112,15 @@ def dataHandler(address, message):
 def startServer(isActive):
     storyActive = isActive
     dispatch = dispatcher.Dispatcher()
-    dispatch.map(address, dataHandler)
-    server = osc_server.ThreadingOSCUDPServer((ipServer, 7001), dispatch)
+    dispatch.map(ADDRESS, dataHandler)
+    server = osc_server.ThreadingOSCUDPServer((OSC_LOCAL_SERVER_IP, OSC_SERVER_PORT), dispatch)
     server.serve_forever()
     
 def init():
     # set gpio
     GPIO.setmode(GPIO.BCM)
-    GPIO.setup(redPin, GPIO.IN)
-    GPIO.setup(bluePin, GPIO.IN)
+    GPIO.setup(RED_PI_PIN, GPIO.IN)
+    GPIO.setup(BLUE_PI_PIN, GPIO.IN)
     
     # start server
     serverRunner = Process(target = startServer, args=(storyActive,))
@@ -122,7 +130,7 @@ init()
 
 while True:
     try:
-        if GPIO.input(bluePin) == 0:
+        if GPIO.input(BLUE_PI_PIN) == 0:
             currentNumber = getNumber()
             if currentNumber != 0:
                 if storyActive.value == False:
