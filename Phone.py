@@ -124,11 +124,11 @@ def playReaperAudio():
             osc_process()
 
 
-def stopReaperAudio():
-    stopMessage = oscbuildparse.OSCMessage("/stop/", None, [1])
+def playReaperPauseMusic():
+    pauseMessage = oscbuildparse.OSCMessage("/marker/10", None, [1])
     finished = False
     while not finished:
-            osc_send(stopMessage, REAPER_CLIENT_NAME)
+            osc_send(pauseMessage, REAPER_CLIENT_NAME)
             osc_process()
             finished = True
 
@@ -138,11 +138,12 @@ def startReaperAudio(currentNumber):
     osc_udp_client(OSC_REMOTE_SERVER_IP, REAPER_PORT, REAPER_CLIENT_NAME)
 
     if currentNumber > 4:
-        stopReaperAudio()
+        playReaperPauseMusic()
+        playReaperAudio()
     else:
         setReaperMarker(currentNumber)
         playReaperAudio()
-        osc_terminate()
+    osc_terminate()
 
 
 def dataHandler(address, message):
