@@ -107,7 +107,7 @@ def startResolumeVideo(currentNumber):
 
 
 def setReaperMarker(currentNumber):
-    markerMessage = oscbuildparse.OSCMessage("/marker/" + currentNumber, None, [1])
+    markerMessage = oscbuildparse.OSCMessage("/marker/" + str(currentNumber), None, [1])
     finished = False
     while not finished:
             osc_send(markerMessage, REAPER_CLIENT_NAME)
