@@ -17,6 +17,7 @@ lock = threading.Lock()
 # STORY SETUP
 storyActive = Value('b', False)
 storyStart = Value('b', False)
+currentlyPlaying = Value('i', -1)
 
 # Logging
 LOGGING_DB_NAME = "logging"
@@ -136,7 +137,7 @@ def logStoryStarted(currentNumber):
 
 
 def openClient(currentNumber):
-    global storyStart
+    global storyStart, currentlyPlaying
 
     if storyStart.value:
         print("Not playing since story started..")
@@ -153,6 +154,7 @@ def openClient(currentNumber):
 
         startResolumeVideo(currentNumber)
         startReaperAudio(currentNumber)
+        currentlyPlaying.value = currentNumber
         logStoryStarted(currentNumber)
     finally:
         lock.release()
@@ -173,7 +175,6 @@ def setReaperMarker(currentNumber):
         osc_send(markerMessage, REAPER_CLIENT_NAME)
         osc_process()
         finished = True
-
 
 def playReaperAudio():
     playMessage = oscbuildparse.OSCMessage("/action/40317", None, [1])
@@ -207,24 +208,33 @@ def startReaperAudio(currentNumber):
 
 
 def dataHandler(address, message):
-    if storyActive.value and not storyStart.value and message > 0.98:
+    # if storyActive.value and message >= 0.99 and storyStart.value:
+    #     print("Story is active, message is over 0.98, but preventing start due StoryStart")
+    # if not storyActive.value and message >= 0.99 and not storyStart.value:
+    #     print("story is not active, message is over 0.98, but not preventing from storyStart")
+    # if not storyActive.value and message >= 0.99 and storyStart.value:
+    #     print("Story is not active, storystart is preventing start, AND message is over 0.98, wtf??")
+    if currentlyPlaying.value < 5 and not storyStart.value and message >= 0.99:
         print("Ending")
         print(message)  # debug
         stopStory()
 
 
 def stopStory():
+    global currentlyPlaying
+    currentlyPlaying.value = 11
     openClient(11)
     storyActive.value = False
 
 
-def startServer(isActive, storyStatus):
-    global storyActive, storyStart
+def startServer(isActive, storyStatus, playingNumber):
+    global storyActive, storyStart, currentlyPlaying
     storyActive = isActive
     storyStart = storyStatus
+    currentlyPlaying = playingNumber
     dispatch = dispatcher.Dispatcher()
     dispatch.map(ADDRESS, dataHandler)
-    server = osc_server.ThreadingOSCUDPServer((OSC_LOCAL_SERVER_IP, OSC_SERVER_PORT), dispatch)
+    server = osc_server.BlockingOSCUDPServer((OSC_LOCAL_SERVER_IP, OSC_SERVER_PORT), dispatch)
     print("Starting server, serving forever")
     server.serve_forever()
 
@@ -236,7 +246,7 @@ def init():
     GPIO.setup(BLUE_PI_PIN, GPIO.IN)
 
     # start server
-    serverRunner = Process(target=startServer, args=(storyActive,storyStart))
+    serverRunner = Process(target=startServer, args=(storyActive,storyStart, currentlyPlaying))
     serverRunner.start()
 
     initializeDatabase()
